@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Threat Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        /* Custom scrollbar for the terminal */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-8 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        <header class="flex justify-between items-center bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 shadow-2xl">
+            <div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">Live Threat Monitor</h1>
+                <p class="text-sm text-slate-400 mt-1">Real-time application layer defense metrics.</p>
+            </div>
+            <a href="#" class="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/40 transition">System Lockdown</a>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="space-y-6 flex flex-col">
+                <div class="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 shadow-2xl flex-1">
+                    <h3 class="text-lg font-semibold text-slate-300 mb-4">Active Countermeasures</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center p-3 bg-black/20 rounded-lg border border-white/5">
+                            <span class="text-slate-400">SQLi Deflections</span>
+                            <span class="text-cyan-400 font-mono text-xl" id="metric-sqli">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-black/20 rounded-lg border border-white/5">
+                            <span class="text-slate-400">DDoS Tarpit Engagements</span>
+                            <span class="text-amber-400 font-mono text-xl" id="metric-tarpit">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-black/20 rounded-lg border border-white/5">
+                            <span class="text-slate-400">Failed Auth Lockouts</span>
+                            <span class="text-red-400 font-mono text-xl" id="metric-auth">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col h-[500px]">
+                <h3 class="text-lg font-semibold text-slate-300 mb-4 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Live Server Logs
+                </h3>
+                
+                <div id="terminal" class="flex-1 overflow-y-auto font-mono text-sm space-y-2 pr-2">
+                    {% for log in logs|reverse %}
+                        <div class="flex gap-4 p-2 rounded bg-white/5 border-l-2 {% if log.severity == 'CRITICAL' %}border-red-500 text-red-300{% elif log.severity == 'WARNING' %}border-amber-500 text-amber-300{% else %}border-emerald-500 text-slate-300{% endif %}">
+                            <span class="text-slate-500 shrink-0">[{{ log.timestamp.strftime('%H:%M:%S') }}]</span>
+                            <span class="text-cyan-400 shrink-0">{{ log.ip_address }}</span>
+                            <span class="font-bold shrink-0">{{ log.event_type }}</span>
+                            <span class="text-slate-400 truncate">{{ log.description }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Connect to the WebSocket namespace we defined in the backend
+        const socket = io('http://' + document.domain + ':' + location.port + '/soc');
+        const terminal = document.getElementById('terminal');
+
+        // Metric counters
+        let sqliCount = 0;
+        let tarpitCount = 0;
+        let authCount = 0;
+
+        socket.on('new_log', function(data) {
+            // Determine styling based on severity
+            let borderColor = 'border-emerald-500';
+            let textColor = 'text-slate-300';
+            
+            if (data.severity === 'CRITICAL') {
+                borderColor = 'border-red-500';
+                textColor = 'text-red-300';
+            } else if (data.severity === 'WARNING') {
+                borderColor = 'border-amber-500';
+                textColor = 'text-amber-300';
+            }
+
+            // Update Metrics based on event type
+            if (data.event_type === 'SQLI_BLOCKED') {
+                document.getElementById('metric-sqli').innerText = ++sqliCount;
+            } else if (data.event_type === 'TARPIT_ENGAGED') {
+                document.getElementById('metric-tarpit').innerText = ++tarpitCount;
+            } else if (data.event_type === 'AUTH_FAILED' || data.event_type === '2FA_FAILED') {
+                document.getElementById('metric-auth').innerText = ++authCount;
+            }
+
+            // Create the new log element
+            const logEntry = document.createElement('div');
+            logEntry.className = `flex gap-4 p-2 rounded bg-white/5 border-l-2 ${borderColor} ${textColor} animate-fade-in`;
+            
+            // Format the time directly from the data timestamp
+            const timeString = data.timestamp.split(' ')[1];
+
+            logEntry.innerHTML = `
+                <span class="text-slate-500 shrink-0">[${timeString}]</span>
+                <span class="text-cyan-400 shrink-0">${data.ip_address}</span>
+                <span class="font-bold shrink-0">${data.event_type}</span>
+                <span class="text-slate-400 truncate">${data.description}</span>
+            `;
+
+            // Prepend the new log to the top of the terminal
+            terminal.insertBefore(logEntry, terminal.firstChild);
+        });
+    </script>
+</body>
+</html>
