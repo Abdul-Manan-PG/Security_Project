@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
 from flask_limiter import Limiter
@@ -18,6 +18,10 @@ def create_app(config_class=Config):
     db.init_app(app)
     socketio.init_app(app)
     limiter.init_app(app)
+    
+    # Initialize Flask-Mail
+    from flask_mail import Mail
+    mail = Mail(app)
 
     with app.app_context():
         # 1. Import database models
@@ -33,17 +37,17 @@ def create_app(config_class=Config):
         # 3. Import and register defensive middleware
         from .middleware.firewall import check_for_sqli
         from .middleware.tarpit import apply_tarpit
+        from .middleware.dos_defense import check_if_ip_blocked
 
         @app.before_request
         def run_security_checks():
             """Intercepts every incoming request before routing."""
-            check_for_sqli()
-            apply_tarpit()
+            check_if_ip_blocked()  # Check for blocked IPs first
+            check_for_sqli()       # Check for SQL injection
+            apply_tarpit()         # Apply DDoS tarpit
 
         # 4. Create the SQLite database file and tables if they don't exist
         db.create_all()
-        # Add this right below where you call db.create_all()
-        from flask import redirect, url_for
 
         @app.route('/')
         def home():
