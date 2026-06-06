@@ -76,15 +76,21 @@ def login():
             db.session.commit()
             
             # Send code via email
-            if send_2fa_code_email(user.email, code):
-                # Store pending user ID and code ID in session
-                session['pending_user_id'] = user.id
-                session['pending_code_id'] = two_factor_code.id
-                log_security_event(request.remote_addr, "AUTH_STEP1_SUCCESS", "INFO", f"Valid password entered for {email}, 2FA code sent")
-                return redirect(url_for('auth.verify_2fa'))
+            email_sent = send_2fa_code_email(user.email, code)
+            
+            # Store pending user ID and code ID in session
+            session['pending_user_id'] = user.id
+            session['pending_code_id'] = two_factor_code.id
+            session['debug_2fa_code'] = code  # For demo purposes - show code on screen if email fails
+            
+            if email_sent:
+                log_security_event(request.remote_addr, "AUTH_STEP1_SUCCESS", "INFO", f"Valid password entered for {email}, 2FA code sent via email")
+                flash('Verification code sent to your email.')
             else:
-                flash('Failed to send 2FA code. Please try again.')
-                log_security_event(request.remote_addr, "2FA_EMAIL_FAILED", "WARNING", f"Failed to send 2FA code for {email}")
+                log_security_event(request.remote_addr, "AUTH_STEP1_SUCCESS", "INFO", f"Valid password entered for {email}, 2FA code displayed (email unavailable)")
+                flash('Verification code generated (email not configured - check below).')
+            
+            return redirect(url_for('auth.verify_2fa'))
         
         # Log the failed attempt
         record_failed_login(request.remote_addr)
@@ -113,6 +119,9 @@ def verify_2fa():
         flash('2FA code has expired. Please login again.')
         return redirect(url_for('auth.login'))
 
+    # Get debug code for display (if email failed)
+    debug_code = session.get('debug_2fa_code')
+
     if request.method == 'POST':
         otp_code = request.form.get('otp_code')
 
@@ -121,6 +130,7 @@ def verify_2fa():
             session['user_id'] = user.id
             session.pop('pending_user_id', None)
             session.pop('pending_code_id', None)
+            session.pop('debug_2fa_code', None)
             
             # Mark code as used
             code_record.used = True
@@ -130,10 +140,11 @@ def verify_2fa():
             log_security_event(request.remote_addr, "AUTH_SUCCESS", "INFO", f"User {user.email} fully authenticated via email 2FA.")
             return redirect(url_for('dashboard.index'))
         else:
-            log_security_event(request.remote_addr, "2FA_FAILED", "WARNING", f"Invalid 2FA token for {user.email}")
+            log_security_event(request.remote_addr, "2FA_FAILED", "WARNING", f"Invalid 2FA code for {user.email}")
             flash('Invalid 2FA code. Try again.')
+            return render_template('verify_2fa.html', debug_code=debug_code)
 
-    return render_template('verify_2fa.html')
+    return render_template('verify_2fa.html', debug_code=debug_code)
 
 @auth_bp.route('/logout')
 def logout():
