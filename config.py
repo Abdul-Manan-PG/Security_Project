@@ -23,10 +23,11 @@ class Config:
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD') or 'your-app-password'
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or 'noreply@socdashboard.com'
     
-    # Admin Email for alerts
-    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'admin@socdashboard.com'
-    
     # Security Settings
     PASSWORD_RESET_EXPIRATION = 3600  # 1 hour in seconds
     MAX_FAILED_LOGINS = 5
     IP_BLOCK_DURATION = 900  # 15 minutes in seconds
+    
+    # Admin Credentials (for demo purposes)
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'admin@socdashboard.com'
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin123'

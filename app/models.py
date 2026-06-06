@@ -50,6 +50,20 @@ class User(db.Model):
         self.password_reset_token = None
         self.password_reset_expires = None
 
+class TwoFactorCode(db.Model):
+    """Stores email-based 2FA codes for user authentication."""
+    __tablename__ = 'two_factor_codes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    code = db.Column(db.String(6), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False)
+    
+    user = db.relationship('User', backref=db.backref('two_factor_codes', lazy=True))
+
+
 class SecurityLog(db.Model):
     __tablename__ = 'security_logs'
     
