@@ -4,8 +4,6 @@ import time
 import threading
 
 BASE_URL = "http://127.0.0.1:5000"
-ADMIN_EMAIL = "admin@socdashboard.com"
-ADMIN_PASSWORD = "testpass123"
 
 def print_status(test_name, response, elapsed_time=None):
     """Format output for the terminal."""
