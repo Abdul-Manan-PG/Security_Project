@@ -8,3 +8,14 @@ __pycache__/
 # Logs
 *.log
 ```
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```
+.env
+
+# Logs
+*.log
+soc_dashboard.log
+```
