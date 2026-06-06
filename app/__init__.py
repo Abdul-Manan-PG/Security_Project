@@ -35,7 +35,7 @@ def create_app(config_class=Config):
         app.register_blueprint(dashboard_bp)
 
         # 3. Import and register defensive middleware
-        from .middleware.firewall import check_for_sqli
+        from .middleware.firewall import check_for_sqli, check_for_xss
         from .middleware.tarpit import apply_tarpit
         from .middleware.dos_defense import check_if_ip_blocked
 
@@ -44,6 +44,7 @@ def create_app(config_class=Config):
             """Intercepts every incoming request before routing."""
             check_if_ip_blocked()  # Check for blocked IPs first
             check_for_sqli()       # Check for SQL injection
+            check_for_xss()        # Check for XSS attacks
             apply_tarpit()         # Apply DDoS tarpit
 
         # 4. Create the SQLite database file and tables if they don't exist
