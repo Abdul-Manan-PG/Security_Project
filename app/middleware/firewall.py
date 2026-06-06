@@ -41,14 +41,14 @@ def check_for_sqli():
     # Check URL parameters
     for key, value in request.args.items():
         if any(pattern.search(str(value)) for pattern in SQLI_PATTERNS):
-            log_interception(request.remote_addr, "SQLI_BLOCKED", "CRITICAL", f"SQLi payload detected in URL param: {key}")
+            log_interception(request.remote_addr, "SQLI_BLOCKED", "CRITICAL", f"SQLi payload detected in URL param '{key}': {value[:50]}")
             abort(403) # Instantly drop the request with a Forbidden status
 
     # Check Form Data (e.g., Login forms)
     if request.method == 'POST':
         for key, value in request.form.items():
             if any(pattern.search(str(value)) for pattern in SQLI_PATTERNS):
-                log_interception(request.remote_addr, "SQLI_BLOCKED", "CRITICAL", f"SQLi payload detected in form field: {key}")
+                log_interception(request.remote_addr, "SQLI_BLOCKED", "CRITICAL", f"SQLi payload detected in form field '{key}': {value[:50]}")
                 abort(403)
 
 def check_for_xss():
@@ -56,12 +56,12 @@ def check_for_xss():
     # Check URL parameters
     for key, value in request.args.items():
         if any(pattern.search(str(value)) for pattern in XSS_PATTERNS):
-            log_interception(request.remote_addr, "XSS_BLOCKED", "HIGH", f"XSS payload detected in URL param: {key}")
+            log_interception(request.remote_addr, "XSS_BLOCKED", "HIGH", f"XSS payload detected in URL param '{key}': {value[:50]}")
             abort(403)
 
     # Check Form Data (e.g., Login/Registration forms)
     if request.method == 'POST':
         for key, value in request.form.items():
             if any(pattern.search(str(value)) for pattern in XSS_PATTERNS):
-                log_interception(request.remote_addr, "XSS_BLOCKED", "HIGH", f"XSS payload detected in form field: {key}")
+                log_interception(request.remote_addr, "XSS_BLOCKED", "HIGH", f"XSS payload detected in form field '{key}': {value[:50]}")
                 abort(403)

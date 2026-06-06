@@ -47,9 +47,12 @@ def record_failed_login(ip):
     log_interception(ip, "FAILED_LOGIN", "WARNING", 
                     f"Failed login attempt #{attempt_count} from IP {ip}")
     
-    # Block IP if exceeded
+    # Block IP if exceeded threshold
     if attempt_count >= max_attempts:
         block_ip(ip, "FAILED_LOGIN", current_app.config.get('IP_BLOCK_DURATION', 900))
+        # Log the blocking action explicitly
+        log_interception(ip, "DOS_ATTACK_PREVENTED", "CRITICAL", 
+                        f"DoS attack detected from {ip}. Blocked after {attempt_count} failed attempts.")
         return False
     
     return True

@@ -27,13 +27,13 @@ def apply_tarpit():
         # Calculate a delay penalty that increases with the volume of requests
         delay = min(request_count * 0.5, 10.0) # Cap the delay at 10 seconds per request
         
-        # Log the activation only on the initial trigger to avoid spamming the database
-        if request_count == 16:
+        # Log the activation on trigger and periodically to show ongoing attack
+        if request_count == 16 or request_count % 10 == 0:
              log = SecurityLog(
                  ip_address=ip, 
                  event_type="TARPIT_ENGAGED", 
                  severity="WARNING", 
-                 description=f"DDoS signature detected. Tarpit engaged, delaying responses by {delay}s."
+                 description=f"DDoS signature detected from {ip}. Tarpit engaged, delaying responses by {delay}s. Request #{request_count}"
              )
              db.session.add(log)
              db.session.commit()
