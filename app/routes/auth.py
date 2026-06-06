@@ -1,11 +1,12 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
 from werkzeug.security import check_password_hash
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
-import pyotp
-from ..models import User, SecurityLog, db
+import random
+from datetime import datetime, timedelta
+from ..models import User, SecurityLog, db, TwoFactorCode
 from .. import socketio
 from ..middleware.dos_defense import check_if_ip_blocked, record_failed_login
-from ..utils.email import send_password_reset_email, send_security_alert_email
+from ..utils.email import send_password_reset_email, send_security_alert_email, send_2fa_code_email
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -43,14 +44,12 @@ def register():
         new_user = User(email=email)
         new_user.set_password(password)
         
-        # Generate a unique 2FA secret for the user
-        new_user.totp_secret = pyotp.random_base32()
         db.session.add(new_user)
         db.session.commit()
 
         log_security_event(request.remote_addr, "USER_REGISTERED", "INFO", f"New account created for {email}")
         
-        flash('Registration successful. Please log in to setup 2FA.')
+        flash('Registration successful. Please log in.')
         return redirect(url_for('auth.login'))
 
     return render_template('register.html')
@@ -67,10 +66,25 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if user and user.check_password(password):
-            # Password is correct, move to Step 2 (Do NOT log them in fully yet)
-            session['pending_user_id'] = user.id
-            log_security_event(request.remote_addr, "AUTH_STEP1_SUCCESS", "INFO", f"Valid password entered for {email}")
-            return redirect(url_for('auth.verify_2fa'))
+            # Password is correct, generate 6-digit code and send via email
+            code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            expires_at = datetime.utcnow() + timedelta(minutes=10)
+            
+            # Store the code in database
+            two_factor_code = TwoFactorCode(user_id=user.id, code=code, expires_at=expires_at)
+            db.session.add(two_factor_code)
+            db.session.commit()
+            
+            # Send code via email
+            if send_2fa_code_email(user.email, code):
+                # Store pending user ID and code ID in session
+                session['pending_user_id'] = user.id
+                session['pending_code_id'] = two_factor_code.id
+                log_security_event(request.remote_addr, "AUTH_STEP1_SUCCESS", "INFO", f"Valid password entered for {email}, 2FA code sent")
+                return redirect(url_for('auth.verify_2fa'))
+            else:
+                flash('Failed to send 2FA code. Please try again.')
+                log_security_event(request.remote_addr, "2FA_EMAIL_FAILED", "WARNING", f"Failed to send 2FA code for {email}")
         
         # Log the failed attempt
         record_failed_login(request.remote_addr)
@@ -81,29 +95,52 @@ def login():
 
 @auth_bp.route('/verify-2fa', methods=['GET', 'POST'])
 def verify_2fa():
-    """Step 2: Verify TOTP Code"""
-    if 'pending_user_id' not in session:
+    """Step 2: Verify Email Code"""
+    if 'pending_user_id' not in session or 'pending_code_id' not in session:
         return redirect(url_for('auth.login'))
 
     user = User.query.get(session['pending_user_id'])
+    code_record = TwoFactorCode.query.get(session['pending_code_id'])
+
+    if not code_record or code_record.user_id != user.id:
+        flash('Invalid 2FA request. Please login again.')
+        return redirect(url_for('auth.login'))
+
+    # Check if code is expired
+    if datetime.utcnow() > code_record.expires_at:
+        db.session.delete(code_record)
+        db.session.commit()
+        flash('2FA code has expired. Please login again.')
+        return redirect(url_for('auth.login'))
 
     if request.method == 'POST':
         otp_code = request.form.get('otp_code')
-        totp = pyotp.TOTP(user.totp_secret)
 
-        if totp.verify(otp_code):
-            # 2FA successful, complete the login
+        if otp_code == code_record.code:
+            # Code matches, complete the login
             session['user_id'] = user.id
             session.pop('pending_user_id', None)
+            session.pop('pending_code_id', None)
+            
+            # Mark code as used
+            code_record.used = True
             user.last_login = db.func.now()
             db.session.commit()
-            log_security_event(request.remote_addr, "AUTH_SUCCESS", "INFO", f"User {user.email} fully authenticated.")
+            
+            log_security_event(request.remote_addr, "AUTH_SUCCESS", "INFO", f"User {user.email} fully authenticated via email 2FA.")
             return redirect(url_for('dashboard.index'))
         else:
             log_security_event(request.remote_addr, "2FA_FAILED", "WARNING", f"Invalid 2FA token for {user.email}")
             flash('Invalid 2FA code. Try again.')
 
     return render_template('verify_2fa.html')
+
+@auth_bp.route('/logout')
+def logout():
+    """Logout the user."""
+    session.clear()
+    return redirect(url_for('auth.login'))
+
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():

@@ -1,17 +1,18 @@
 # Information Security Project - SOC Threat Intelligence Dashboard
 
-A comprehensive Flask-based Security Operations Center (SOC) dashboard demonstrating real-time attack detection, prevention, and monitoring.
+A comprehensive Flask-based Security Operations Center (SOC) dashboard demonstrating real-time attack detection, prevention, and monitoring with email-based 2FA.
 
 ## 🎯 Project Overview
 
 This project implements a complete security system with:
-- **Secure Authentication**: Password hashing + 2FA (TOTP)
+- **Secure Authentication**: Password hashing + Email-based 2FA (6-digit code sent via email)
 - **Password Recovery**: Email-based password reset
 - **DoS Defense**: IP blocking after failed login attempts
 - **DDoS Protection**: HTTP tarpit defense mechanism
 - **SQL Injection Prevention**: Pattern-based detection and blocking
-- **Live Monitoring**: Real-time security logs dashboard
+- **Live Monitoring**: Real-time security logs dashboard for admin
 - **Email Alerts**: Security notifications to admin
+- **Attack Detection & Prevention**: Detects and blocks attacks from Kali Linux tools
 
 ---
 
@@ -33,32 +34,46 @@ cd Security_Project
 pip install -r requirements.txt
 ```
 
-3. **Create Example User (Optional)**
+3. **Initialize Database and Create Admin User**
 ```bash
-python -c "
-from app import create_app, db
-from app.models import User
-app = create_app()
-with app.app_context():
-    db.create_all()
-    user = User(email='admin@test.com')
-    user.set_password('Admin123!')
-    user.totp_secret = 'JBSWY3DPEBLW64TMMQ======'  # or generate with pyotp.random_base32()
-    db.session.add(user)
-    db.session.commit()
-    print('User created: admin@test.com / Admin123!')
-"
+python run.py
+```
+The application will automatically create the database and admin user on first run.
+
+**Default Admin Credentials:**
+- Email: `admin@socdashboard.com`
+- Password: `admin123`
+
+4. **Configure Email (Required for 2FA)**
+
+Set environment variables for email sending:
+
+**Windows:**
+```cmd
+set MAIL_USERNAME=your-email@gmail.com
+set MAIL_PASSWORD=your-app-password
+set ADMIN_EMAIL=admin@socdashboard.com
 ```
 
-4. **Run Application**
+**Linux/Mac:**
+```bash
+export MAIL_USERNAME=your-email@gmail.com
+export MAIL_PASSWORD=your-app-password
+export ADMIN_EMAIL=admin@socdashboard.com
+```
+
+**Note**: For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833), not your regular password.
+
+5. **Run Application**
 ```bash
 python run.py
 ```
 
-5. **Access Dashboard**
+6. **Access Dashboard**
 - URL: `http://127.0.0.1:5000`
-- Login with your credentials
-- Enter 2FA code from authenticator app
+- Login with admin credentials
+- Check your email for the 6-digit verification code
+- Enter the code to access the dashboard
 
 ---
 
@@ -70,11 +85,11 @@ python run.py
 - Session management with timeout
 - User model with extended tracking
 
-### Phase 2: Two-Factor Authentication ✅
-- TOTP/OTP implementation using pyotp
-- 6-digit verification code
-- Time-based one-time passwords (30-second window)
-- Backup codes support
+### Phase 2: Email-Based Two-Factor Authentication ✅
+- 6-digit verification code sent via email
+- Code expires in 10 minutes
+- One-time use codes
+- Resend code option
 
 ### Phase 3: Password Recovery ✅
 - Forgot password form
@@ -88,11 +103,12 @@ python run.py
 - **DDoS Tarpit**: Exponential delay (0.5s per request, max 10s)
 - Automatic IP unblocking after 15 minutes
 
-### Phase 5: Monitoring & Logging ✅
+### Phase 5: Admin Monitoring & Logging ✅
 - Real-time security logs dashboard
 - WebSocket live updates
 - Attack metrics display (SQLi blocked, DDoS engaged, etc)
 - Color-coded severity levels
+- Logout functionality
 
 ### Phase 6: Attack Simulation ✅
 - SQLi test script (test_security.py)
@@ -102,6 +118,7 @@ python run.py
 
 ### Phase 7: Email Notifications ✅
 - SMTP configuration
+- 2FA verification code emails
 - Password reset emails
 - Security alert emails
 - Admin notifications
@@ -114,23 +131,23 @@ python run.py
 Security_Project/
 ├── app/
 │   ├── __init__.py                 # App factory, extensions
-│   ├── models.py                   # User, SecurityLog, IPBlocklist
+│   ├── models.py                   # User, SecurityLog, IPBlocklist, TwoFactorCode
 │   ├── middleware/
 │   │   ├── firewall.py             # SQLi detection
 │   │   ├── tarpit.py               # DDoS defense
 │   │   └── dos_defense.py          # DoS IP blocking
 │   ├── routes/
-│   │   ├── auth.py                 # Login, register, 2FA, password reset
+│   │   ├── auth.py                 # Login, register, 2FA, password reset, logout
 │   │   └── dashboard.py            # Live logs dashboard
 │   ├── utils/
-│   │   └── email.py                # Email sending utilities
+│   │   └── email.py                # Email sending utilities (2FA, reset, alerts)
 │   └── templates/
 │       ├── login.html              # Login form
 │       ├── register.html           # Registration form
-│       ├── verify_2fa.html         # 2FA verification
+│       ├── verify_2fa.html         # Email 2FA verification
 │       ├── forgot_password.html    # Password recovery form
 │       ├── reset_password.html     # Password reset form
-│       └── dashboard.html          # Live logs dashboard
+│       └── dashboard.html          # Live logs dashboard with logout
 ├── config.py                       # Configuration settings
 ├── requirements.txt                # Python dependencies
 ├── run.py                          # Entry point
@@ -150,11 +167,12 @@ user.set_password(password)  # Automatic hashing
 user.check_password(password)  # Verification
 ```
 
-### 2. Two-Factor Authentication (2FA)
-- User sets up 2FA during registration
-- Uses Time-based One-Time Password (TOTP)
-- Compatible with Google Authenticator, Authy, Microsoft Authenticator
-- 6-digit codes valid for 30 seconds
+### 2. Email-Based Two-Factor Authentication (2FA)
+- After entering correct password, 6-digit code is generated
+- Code is sent to user's email address
+- Code expires in 10 minutes
+- Code can only be used once
+- Compatible with any email provider
 
 ### 3. Password Reset Flow
 ```
@@ -247,8 +265,8 @@ This will:
 
 To enable email notifications, set environment variables:
 
-```bash
-# For Gmail
+**Windows:**
+```cmd
 set MAIL_SERVER=smtp.gmail.com
 set MAIL_PORT=587
 set MAIL_USERNAME=your-email@gmail.com
@@ -256,9 +274,19 @@ set MAIL_PASSWORD=your-app-password
 set ADMIN_EMAIL=admin@socdashboard.com
 ```
 
+**Linux/Mac:**
+```bash
+export MAIL_SERVER=smtp.gmail.com
+export MAIL_PORT=587
+export MAIL_USERNAME=your-email@gmail.com
+export MAIL_PASSWORD=your-app-password
+export ADMIN_EMAIL=admin@socdashboard.com
+```
+
 **Note**: For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833), not your regular password.
 
 Emails sent for:
+- 2FA verification codes
 - Password reset links
 - Critical security alerts
 - IP blocking notifications
@@ -271,15 +299,16 @@ Emails sent for:
 1. Visit `http://127.0.0.1:5000`
 2. Click "Register here"
 3. Enter email and password
-4. System generates TOTP secret
-5. Redirect to login
+4. Redirect to login
 
-### User Login
+### User Login (with Email 2FA)
 1. Enter email and password
-2. If credentials correct → redirect to 2FA
-3. Enter 6-digit code from authenticator app
-4. On success → access dashboard
-5. Dashboard shows live security events
+2. If credentials correct → 6-digit code sent to email
+3. Check email for verification code
+4. Enter 6-digit code on verification page
+5. On success → access dashboard
+6. Dashboard shows live security events
+7. Click "Logout" to sign out
 
 ### Password Recovery
 1. Click "Forgot password?" on login page
@@ -292,17 +321,19 @@ Emails sent for:
 ### Admin Monitoring
 - Live dashboard shows all security events
 - Real-time metrics update
-- Click on events for details
-- Export logs for analysis (future feature)
+- View attack attempts (SQLi, DoS, DDoS)
+- All events logged in database
+- Click "Logout" to sign out
 
 ---
 
 ## 🛡️ Attack Simulation Examples
 
-### Simulate SQL Injection
+### Simulate SQL Injection (from Kali Linux)
 ```bash
-# In test_security.py:
-payload = "admin' OR 1=1 --"
+# Using curl to test SQLi
+curl -X POST http://127.0.0.1:5000/login \
+  -d "email=admin' OR 1=1 --&password=test"
 # Expected: 403 Forbidden + logged as SQLI_BLOCKED
 ```
 
@@ -315,8 +346,8 @@ python test_dos_attack.py
 
 ### Simulate DDoS Attack
 ```bash
-# In test_security.py:
-# Send 20 rapid requests
+# Send 20 rapid requests:
+python test_security.py
 # Expected: Tarpit engages, responses delay exponentially
 ```
 
@@ -328,17 +359,22 @@ python test_dos_attack.py
 - `id`: Integer (Primary Key)
 - `email`: String (unique)
 - `password_hash`: String (PBKDF2-SHA256)
-- `totp_secret`: String (Base32 encoded)
-- `password_reset_token`: String (optional)
-- `password_reset_expires`: DateTime
 - `created_at`: DateTime
 - `last_login`: DateTime
+
+### TwoFactorCode
+- `id`: Integer (Primary Key)
+- `user_id`: Integer (Foreign Key)
+- `code`: String (6 digits)
+- `created_at`: DateTime
+- `expires_at`: DateTime
+- `used`: Boolean
 
 ### SecurityLog
 - `id`: Integer (Primary Key)
 - `timestamp`: DateTime
 - `ip_address`: String
-- `event_type`: String (e.g., LOGIN_SUCCESS, SQLI_BLOCKED)
+- `event_type`: String (e.g., LOGIN_SUCCESS, SQLI_BLOCKED, AUTH_SUCCESS)
 - `severity`: String (INFO, WARNING, CRITICAL)
 - `description`: Text
 
@@ -366,12 +402,13 @@ PASSWORD_RESET_EXPIRATION = 3600  # 1 hour
 MAX_FAILED_LOGINS = 5
 IP_BLOCK_DURATION = 900  # 15 minutes
 
-# Rate limiting
-"200 per day, 50 per hour"
-
 # Email settings
 MAIL_SERVER = 'smtp.gmail.com'
 MAIL_PORT = 587
+
+# Admin credentials (for demo)
+ADMIN_EMAIL = 'admin@socdashboard.com'
+ADMIN_PASSWORD = 'admin123'
 ```
 
 ---
@@ -380,7 +417,7 @@ MAIL_PORT = 587
 
 ✅ **Implemented**:
 - Password hashing (PBKDF2-SHA256)
-- 2FA with TOTP
+- Email-based 2FA
 - Rate limiting
 - Input validation
 - SQLi detection
@@ -392,7 +429,7 @@ MAIL_PORT = 587
 
 ⚠️ **For Production**:
 - Use HTTPS/SSL
-- Configure strong SECRET_KEY
+- Change default admin credentials
 - Use PostgreSQL instead of SQLite
 - Use Redis for rate limiter storage
 - Enable CORS restrictions
@@ -404,16 +441,15 @@ MAIL_PORT = 587
 
 ## 📈 Future Enhancements
 
-- [ ] Admin panel for user/IP management
-- [ ] QR code generation for 2FA setup
+- [ ] QR code generation for TOTP option
 - [ ] Backup recovery codes
 - [ ] Session management page
 - [ ] Account activity history
 - [ ] Advanced log filtering/search
 - [ ] PDF report generation
 - [ ] API endpoints with OAuth2
-- [ ] Two-way email verification
 - [ ] Brute force protection with CAPTCHA
+- [ ] Multiple admin users with roles
 
 ---
 
@@ -432,10 +468,11 @@ taskkill /PID <PID> /F
 - Check email logs in database
 - Ensure MAIL_SERVER is accessible
 
-### 2FA Not Working
-- Verify system time is correct
-- Authenticator app clock is synchronized
-- TOTP secret is correctly stored
+### 2FA Code Not Received
+- Check spam folder
+- Verify email configuration
+- Check server logs for email errors
+- Try resending by logging in again
 
 ### IP Unblocking Not Working
 - Check `IPBlocklist` table in database
@@ -450,7 +487,6 @@ Information Security Project - Educational Purpose
 - Flask Web Framework
 - SQLAlchemy ORM
 - Flask-SocketIO for WebSockets
-- pyotp for TOTP implementation
 - Flask-Mail for email sending
 
 ---
@@ -472,9 +508,10 @@ This project demonstrates:
 - Multi-layered protection approaches
 - Attack simulation and testing
 - Live monitoring and alerting
-- Secure authentication patterns
+- Secure authentication with email 2FA
 - Email-based recovery workflows
 - Rate limiting and IP blocking
 - DDoS mitigation techniques
+- Admin panel for security monitoring
 
 All implemented with Flask and best practices for a learning/demonstration project!

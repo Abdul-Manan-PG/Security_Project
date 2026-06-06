@@ -21,7 +21,7 @@
                 <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">Live Threat Monitor</h1>
                 <p class="text-sm text-slate-400 mt-1">Real-time application layer defense metrics.</p>
             </div>
-            <a href="#" class="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/40 transition">System Lockdown</a>
+            <a href="{{ url_for('auth.logout') }}" class="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/40 transition">Logout</a>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
